@@ -1,0 +1,494 @@
+   1               		.file	"main.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   9               		.text
+  10               	.Ltext0:
+ 119               	spi_xchg:
+ 120               		.stabd	46,0,0
+   1:main.c        **** #include <avr/io.h>
+   2:main.c        **** #include <util/delay.h>
+   3:main.c        **** #include <avr/pgmspace.h>
+   4:main.c        **** #include <avr/interrupt.h>
+   5:main.c        **** #include <string.h>
+   6:main.c        **** #include <stdint.h>
+   7:main.c        **** 
+   8:main.c        **** typedef uint8_t u8;
+   9:main.c        **** typedef uint16_t u16;
+  10:main.c        **** typedef uint32_t u32;
+  11:main.c        **** 
+  12:main.c        **** typedef int8_t i8;
+  13:main.c        **** typedef int16_t i16;
+  14:main.c        **** typedef int32_t i32;
+  15:main.c        **** 
+  16:main.c        **** #define SPI_DIR               DDRB
+  17:main.c        **** #define SPI_OUT               PORTB
+  18:main.c        **** #define SPI_MOSI             3
+  19:main.c        **** #define SPI_MISO             4
+  20:main.c        **** #define SPI_SCK              5
+  21:main.c        **** #define SPI_CS_0             0
+  22:main.c        **** #define SPI_CS_1             1
+  23:main.c        **** #define SPI_CS_2             2
+  24:main.c        **** 
+  25:main.c        **** #define SPI_SELECT_BANK_0()   SPI_OUT &= ~(1 << SPI_CS_0);
+  26:main.c        **** #define SPI_DESELECT_BANK_0() SPI_OUT |= (1 << SPI_CS_0);
+  27:main.c        **** 
+  28:main.c        **** #define SPI_SELECT_BANK_1()   SPI_OUT &= ~(1 << SPI_CS_1);
+  29:main.c        **** #define SPI_DESELECT_BANK_1() SPI_OUT |= (1 << SPI_CS_1);
+  30:main.c        **** 
+  31:main.c        **** #define SPI_SELECT_BANK_2()   SPI_OUT &= ~(1 << SPI_CS_2);
+  32:main.c        **** #define SPI_DESELECT_BANK_2() SPI_OUT |= (1 << SPI_CS_2);
+  33:main.c        **** 
+  34:main.c        **** #define SRAM_COMMAND_READ    3
+  35:main.c        **** #define SRAM_COMMAND_WRITE   2
+  36:main.c        **** 
+  37:main.c        **** static void spi_init(void);
+  38:main.c        **** static u8 spi_xchg(u8 data);
+  39:main.c        **** 
+  40:main.c        **** static void sram_read(u32 addr, void *data, u16 size);
+  41:main.c        **** static void sram_write(u32 addr, void *data, u16 size);
+  42:main.c        **** 
+  43:main.c        **** static void spi_init(void)
+  44:main.c        **** {
+  45:main.c        **** 	SPI_DIR = (1 << SPI_MOSI) | (1 << SPI_SCK) |
+  46:main.c        **** 			(1 << SPI_CS_0) | (1 << SPI_CS_1) | (1 << SPI_CS_2);
+  47:main.c        **** 	SPCR = (1 << SPE) | (1 << MSTR);
+  48:main.c        **** 	SPSR = (1 << SPI2X);
+  49:main.c        **** }
+  50:main.c        **** 
+  51:main.c        **** static u8 spi_xchg(u8 data)
+  52:main.c        **** {
+ 122               	.LM0:
+ 123               	.LFBB1:
+ 124               	/* prologue: function */
+ 125               	/* frame size = 0 */
+ 126               	/* stack size = 0 */
+ 127               	.L__stack_usage = 0
+  53:main.c        **** 	SPDR = data;
+ 129               	.LM1:
+ 130 0000 8EBD      		out 0x2e,r24
+ 131               	.L2:
+  54:main.c        **** 	while(!(SPSR & (1 << SPIF))) ;
+ 133               	.LM2:
+ 134 0002 0DB4      		in __tmp_reg__,0x2d
+ 135 0004 07FE      		sbrs __tmp_reg__,7
+ 136 0006 00C0      		rjmp .L2
+  55:main.c        **** 	return SPDR;
+ 138               	.LM3:
+ 139 0008 8EB5      		in r24,0x2e
+ 140               	/* epilogue start */
+  56:main.c        **** }
+ 142               	.LM4:
+ 143 000a 0895      		ret
+ 145               	.Lscope1:
+ 147               		.stabd	78,0,0
+ 151               	uart_tx_str_P:
+ 152               		.stabd	46,0,0
+  57:main.c        **** 
+  58:main.c        **** static void sram_read(u32 addr, void *data, u16 size)
+  59:main.c        **** {
+  60:main.c        **** 	u16 i;
+  61:main.c        **** 	u8 *data8;
+  62:main.c        **** 	SPI_SELECT_BANK_0();
+  63:main.c        **** 	data8 = (u8 *)data;
+  64:main.c        **** 	spi_xchg(SRAM_COMMAND_READ);
+  65:main.c        **** 	spi_xchg((u8)((addr >> 16) & 0xFF));
+  66:main.c        **** 	spi_xchg((u8)((addr >> 8) & 0xFF));
+  67:main.c        **** 	spi_xchg((u8)(addr & 0xFF));
+  68:main.c        **** 	for(i = 0; i < size; ++i)
+  69:main.c        **** 	{
+  70:main.c        **** 		data8[i] = spi_xchg(0xFF);
+  71:main.c        **** 	}
+  72:main.c        **** 
+  73:main.c        **** 	SPI_DESELECT_BANK_0();
+  74:main.c        **** }
+  75:main.c        **** 
+  76:main.c        **** static void sram_write(u32 addr, void *data, u16 size)
+  77:main.c        **** {
+  78:main.c        **** 	u16 i;
+  79:main.c        **** 	u8 *data8;
+  80:main.c        **** 	SPI_SELECT_BANK_0();
+  81:main.c        **** 	data8 = (u8 *)data;
+  82:main.c        **** 	spi_xchg(SRAM_COMMAND_WRITE);
+  83:main.c        **** 	spi_xchg((u8)((addr >> 16) & 0xFF));
+  84:main.c        **** 	spi_xchg((u8)((addr >> 8) & 0xFF));
+  85:main.c        **** 	spi_xchg((u8)(addr & 0xFF));
+  86:main.c        **** 	for(i = 0; i < size; ++i)
+  87:main.c        **** 	{
+  88:main.c        **** 		spi_xchg(data8[i]);
+  89:main.c        **** 	}
+  90:main.c        **** 
+  91:main.c        **** 	SPI_DESELECT_BANK_0();
+  92:main.c        **** }
+  93:main.c        **** 
+  94:main.c        **** #define UART_BAUD  9600
+  95:main.c        **** #define _BAUD (((F_CPU / (UART_BAUD * 16UL))) - 1)
+  96:main.c        **** 
+  97:main.c        **** static void uart_init(void)
+  98:main.c        **** {
+  99:main.c        **** 	UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+ 100:main.c        **** 	UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+ 101:main.c        **** 	UBRR0L = (uint8_t)(_BAUD & 0xFF);
+ 102:main.c        **** 	UBRR0H = (uint8_t)((_BAUD >> 8) & 0xFF);
+ 103:main.c        **** }
+ 104:main.c        **** 
+ 105:main.c        **** static void uart_tx(char c)
+ 106:main.c        **** {
+ 107:main.c        **** 	while(!(UCSR0A & (1 << UDRE0))) ;
+ 108:main.c        **** 	UDR0 = c;
+ 109:main.c        **** }
+ 110:main.c        **** 
+ 111:main.c        **** static void uart_tx_str(const char *s)
+ 112:main.c        **** {
+ 113:main.c        **** 	register char c;
+ 114:main.c        **** 	while((c = *s++)) { uart_tx(c); }
+ 115:main.c        **** }
+ 116:main.c        **** 
+ 117:main.c        **** static void uart_tx_str_P(const char *s)
+ 118:main.c        **** {
+ 154               	.LM5:
+ 155               	.LFBB2:
+ 156               	/* prologue: function */
+ 157               	/* frame size = 0 */
+ 158               	/* stack size = 0 */
+ 159               	.L__stack_usage = 0
+ 160 000c FC01      		movw r30,r24
+ 161               	.L5:
+ 162               	.LBB5:
+ 119:main.c        **** 	register char c;
+ 120:main.c        **** 	while((c = pgm_read_byte(s++))) { uart_tx(c); }
+ 164               	.LM6:
+ 165               	/* #APP */
+ 166               	 ;  120 "main.c" 1
+ 167 000e 8491      		lpm r24, Z
+ 168               		
+ 169               	 ;  0 "" 2
+ 170               	/* #NOAPP */
+ 171               	.LBE5:
+ 173               	.LM7:
+ 174 0010 8111      		cpse r24,__zero_reg__
+ 175 0012 00C0      		rjmp .L6
+ 176               	/* epilogue start */
+ 121:main.c        **** }
+ 178               	.LM8:
+ 179 0014 0895      		ret
+ 180               	.L6:
+ 181               	.LBB6:
+ 182               	.LBB7:
+ 107:main.c        **** 	UDR0 = c;
+ 184               	.LM9:
+ 185 0016 9091 C000 		lds r25,192
+ 107:main.c        **** 	UDR0 = c;
+ 187               	.LM10:
+ 188 001a 95FF      		sbrs r25,5
+ 189 001c 00C0      		rjmp .L6
+ 108:main.c        **** }
+ 191               	.LM11:
+ 192 001e 8093 C600 		sts 198,r24
+ 193 0022 3196      		adiw r30,1
+ 109:main.c        **** 
+ 195               	.LM12:
+ 196 0024 00C0      		rjmp .L5
+ 197               	.LBE7:
+ 198               	.LBE6:
+ 203               	.Lscope2:
+ 205               		.stabd	78,0,0
+ 206               		.section	.rodata
+ 207               	.LC0:
+ 208 0000 4865 6C6C 		.string	"Hello World! This is a Memory Test String that is being copied three times (once to every
+ 208      6F20 576F 
+ 208      726C 6421 
+ 208      2054 6869 
+ 208      7320 6973 
+ 209 0068 0000 0000 		.zero	408
+ 209      0000 0000 
+ 209      0000 0000 
+ 209      0000 0000 
+ 209      0000 0000 
+ 210               		.section	.text.startup,"ax",@progbits
+ 212               	.global	main
+ 214               	main:
+ 215               		.stabd	46,0,0
+ 122:main.c        **** 
+ 123:main.c        **** int main(void)
+ 124:main.c        **** {
+ 217               	.LM13:
+ 218               	.LFBB3:
+ 219 0000 CDB7      		in r28,__SP_L__
+ 220 0002 DEB7      		in r29,__SP_H__
+ 221 0004 D450      		subi r29,4
+ 222 0006 0FB6      		in __tmp_reg__,__SREG__
+ 223 0008 F894      		cli
+ 224 000a DEBF      		out __SP_H__,r29
+ 225 000c 0FBE      		out __SREG__,__tmp_reg__
+ 226 000e CDBF      		out __SP_L__,r28
+ 227               	/* prologue: function */
+ 228               	/* frame size = 1024 */
+ 229               	/* stack size = 1024 */
+ 230               	.L__stack_usage = 1024
+ 125:main.c        **** 	char buf0[512] = "Hello World! This is a Memory Test String that is being copied three times (once
+ 232               	.LM14:
+ 233 0010 7E01      		movw r14,r28
+ 234 0012 2FEF      		ldi r18,-1
+ 235 0014 E21A      		sub r14,r18
+ 236 0016 2DEF      		ldi r18,-3
+ 237 0018 F20A      		sbc r15,r18
+ 238 001a 88E6      		ldi r24,lo8(104)
+ 239 001c E0E0      		ldi r30,lo8(.LC0)
+ 240 001e F0E0      		ldi r31,hi8(.LC0)
+ 241 0020 D701      		movw r26,r14
+ 242               		0:
+ 243 0022 0190      		ld r0,Z+
+ 244 0024 0D92      		st X+,r0
+ 245 0026 8A95      		dec r24
+ 246 0028 01F4      		brne 0b
+ 247 002a FE01      		movw r30,r28
+ 248 002c E759      		subi r30,-105
+ 249 002e FD4F      		sbci r31,-3
+ 250 0030 88E9      		ldi r24,lo8(-104)
+ 251 0032 91E0      		ldi r25,lo8(1)
+ 252 0034 DF01      		movw r26,r30
+ 253 0036 9C01      		movw r18,r24
+ 254               		0:
+ 255 0038 1D92      		st X+,__zero_reg__
+ 256 003a 2150      		subi r18,1
+ 257 003c 3040      		sbci r19,0
+ 258 003e 01F4      		brne 0b
+ 259               	.LBB22:
+ 260               	.LBB23:
+  99:main.c        **** 	UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+ 262               	.LM15:
+ 263 0040 88E1      		ldi r24,lo8(24)
+ 264 0042 8093 C100 		sts 193,r24
+ 100:main.c        **** 	UBRR0L = (uint8_t)(_BAUD & 0xFF);
+ 266               	.LM16:
+ 267 0046 86E0      		ldi r24,lo8(6)
+ 268 0048 8093 C200 		sts 194,r24
+ 101:main.c        **** 	UBRR0H = (uint8_t)((_BAUD >> 8) & 0xFF);
+ 270               	.LM17:
+ 271 004c 87E6      		ldi r24,lo8(103)
+ 272 004e 8093 C400 		sts 196,r24
+ 102:main.c        **** }
+ 274               	.LM18:
+ 275 0052 1092 C500 		sts 197,__zero_reg__
+ 276               	.LBE23:
+ 277               	.LBE22:
+ 126:main.c        **** 
+ 127:main.c        **** 	uart_init();
+ 128:main.c        **** 	uart_tx_str_P(PSTR("23LC1024 Memory Test\r\n"));
+ 279               	.LM19:
+ 280 0056 80E0      		ldi r24,lo8(__c.1513)
+ 281 0058 90E0      		ldi r25,hi8(__c.1513)
+ 282 005a 0E94 0000 		call uart_tx_str_P
+ 283               	.LBB24:
+ 284               	.LBB25:
+  45:main.c        **** 			(1 << SPI_CS_0) | (1 << SPI_CS_1) | (1 << SPI_CS_2);
+ 286               	.LM20:
+ 287 005e 8FE2      		ldi r24,lo8(47)
+ 288 0060 84B9      		out 0x4,r24
+  47:main.c        **** 	SPSR = (1 << SPI2X);
+ 290               	.LM21:
+ 291 0062 80E5      		ldi r24,lo8(80)
+ 292 0064 8CBD      		out 0x2c,r24
+  48:main.c        **** }
+ 294               	.LM22:
+ 295 0066 81E0      		ldi r24,lo8(1)
+ 296 0068 8DBD      		out 0x2d,r24
+ 297               	.LBE25:
+ 298               	.LBE24:
+ 299               	.LBB26:
+ 300               	.LBB27:
+  80:main.c        **** 	data8 = (u8 *)data;
+ 302               	.LM23:
+ 303 006a 2898      		cbi 0x5,0
+  82:main.c        **** 	spi_xchg((u8)((addr >> 16) & 0xFF));
+ 305               	.LM24:
+ 306 006c 82E0      		ldi r24,lo8(2)
+ 307 006e 0E94 0000 		call spi_xchg
+  83:main.c        **** 	spi_xchg((u8)((addr >> 8) & 0xFF));
+ 309               	.LM25:
+ 310 0072 80E0      		ldi r24,0
+ 311 0074 0E94 0000 		call spi_xchg
+  84:main.c        **** 	spi_xchg((u8)(addr & 0xFF));
+ 313               	.LM26:
+ 314 0078 80E0      		ldi r24,0
+ 315 007a 0E94 0000 		call spi_xchg
+  85:main.c        **** 	for(i = 0; i < size; ++i)
+ 317               	.LM27:
+ 318 007e 80E0      		ldi r24,0
+ 319 0080 0E94 0000 		call spi_xchg
+ 320 0084 8701      		movw r16,r14
+ 321 0086 6E01      		movw r12,r28
+ 322 0088 3FEF      		ldi r19,-1
+ 323 008a C31A      		sub r12,r19
+ 324 008c 3BEF      		ldi r19,-5
+ 325 008e D30A      		sbc r13,r19
+ 326               	.L11:
+  88:main.c        **** 	}
+ 328               	.LM28:
+ 329 0090 D801      		movw r26,r16
+ 330 0092 8D91      		ld r24,X+
+ 331 0094 8D01      		movw r16,r26
+ 332 0096 0E94 0000 		call spi_xchg
+  86:main.c        **** 	{
+ 334               	.LM29:
+ 335 009a 0C15      		cp r16,r12
+ 336 009c 1D05      		cpc r17,r13
+ 337 009e 01F4      		brne .L11
+  91:main.c        **** }
+ 339               	.LM30:
+ 340 00a0 289A      		sbi 0x5,0
+ 341               	.LBE27:
+ 342               	.LBE26:
+ 129:main.c        **** 	spi_init();
+ 130:main.c        **** 
+ 131:main.c        **** 	sram_write(0, buf0, sizeof(buf0));
+ 132:main.c        **** 	memset(buf1, ' ', sizeof(buf1));
+ 344               	.LM31:
+ 345 00a2 40E0      		ldi r20,0
+ 346 00a4 52E0      		ldi r21,lo8(2)
+ 347 00a6 60E2      		ldi r22,lo8(32)
+ 348 00a8 70E0      		ldi r23,0
+ 349 00aa 8E01      		movw r16,r28
+ 350 00ac 0F5F      		subi r16,-1
+ 351 00ae 1F4F      		sbci r17,-1
+ 352 00b0 C801      		movw r24,r16
+ 353 00b2 0E94 0000 		call memset
+ 354               	.LBB28:
+ 355               	.LBB29:
+  62:main.c        **** 	data8 = (u8 *)data;
+ 357               	.LM32:
+ 358 00b6 2898      		cbi 0x5,0
+  64:main.c        **** 	spi_xchg((u8)((addr >> 16) & 0xFF));
+ 360               	.LM33:
+ 361 00b8 83E0      		ldi r24,lo8(3)
+ 362 00ba 0E94 0000 		call spi_xchg
+  65:main.c        **** 	spi_xchg((u8)((addr >> 8) & 0xFF));
+ 364               	.LM34:
+ 365 00be 80E0      		ldi r24,0
+ 366 00c0 0E94 0000 		call spi_xchg
+  66:main.c        **** 	spi_xchg((u8)(addr & 0xFF));
+ 368               	.LM35:
+ 369 00c4 80E0      		ldi r24,0
+ 370 00c6 0E94 0000 		call spi_xchg
+  67:main.c        **** 	for(i = 0; i < size; ++i)
+ 372               	.LM36:
+ 373 00ca 80E0      		ldi r24,0
+ 374 00cc 0E94 0000 		call spi_xchg
+ 375 00d0 6801      		movw r12,r16
+ 376               	.L12:
+  70:main.c        **** 	}
+ 378               	.LM37:
+ 379 00d2 8FEF      		ldi r24,lo8(-1)
+ 380 00d4 0E94 0000 		call spi_xchg
+  70:main.c        **** 	}
+ 382               	.LM38:
+ 383 00d8 F601      		movw r30,r12
+ 384 00da 8193      		st Z+,r24
+ 385 00dc 6F01      		movw r12,r30
+  68:main.c        **** 	{
+ 387               	.LM39:
+ 388 00de EE15      		cp r30,r14
+ 389 00e0 FF05      		cpc r31,r15
+ 390 00e2 01F4      		brne .L12
+  73:main.c        **** }
+ 392               	.LM40:
+ 393 00e4 289A      		sbi 0x5,0
+  74:main.c        **** 
+ 395               	.LM41:
+ 396 00e6 902F      		mov r25,r16
+ 397 00e8 812F      		mov r24,r17
+ 398               	.L13:
+ 399               	.LBE29:
+ 400               	.LBE28:
+ 401               	.LBB30:
+ 402               	.LBB31:
+ 114:main.c        **** }
+ 404               	.LM42:
+ 405 00ea E92F      		mov r30,r25
+ 406 00ec F82F      		mov r31,r24
+ 114:main.c        **** }
+ 408               	.LM43:
+ 409 00ee 8191      		ld r24,Z+
+ 114:main.c        **** }
+ 411               	.LM44:
+ 412 00f0 8111      		cpse r24,__zero_reg__
+ 413 00f2 00C0      		rjmp .L14
+ 414               	.LBE31:
+ 415               	.LBE30:
+ 133:main.c        **** 	sram_read(0, buf1, sizeof(buf0));
+ 134:main.c        **** 	uart_tx_str(buf1);
+ 135:main.c        **** 
+ 136:main.c        **** 	uart_tx_str_P(PSTR("Test Complete\r\n"));
+ 417               	.LM45:
+ 418 00f4 80E0      		ldi r24,lo8(__c.1515)
+ 419 00f6 90E0      		ldi r25,hi8(__c.1515)
+ 420 00f8 0E94 0000 		call uart_tx_str_P
+ 421               	.L15:
+ 422 00fc 00C0      		rjmp .L15
+ 423               	.L14:
+ 424               	.LBB37:
+ 425               	.LBB36:
+ 426               	.LBB32:
+ 427               	.LBB33:
+ 107:main.c        **** 	UDR0 = c;
+ 429               	.LM46:
+ 430 00fe 9091 C000 		lds r25,192
+ 107:main.c        **** 	UDR0 = c;
+ 432               	.LM47:
+ 433 0102 95FF      		sbrs r25,5
+ 434 0104 00C0      		rjmp .L14
+ 108:main.c        **** }
+ 436               	.LM48:
+ 437 0106 8093 C600 		sts 198,r24
+ 438               	.LBE33:
+ 439               	.LBE32:
+ 114:main.c        **** }
+ 441               	.LM49:
+ 442 010a 9E2F      		mov r25,r30
+ 443 010c 8F2F      		mov r24,r31
+ 444               	.LBB35:
+ 445               	.LBB34:
+ 109:main.c        **** 
+ 447               	.LM50:
+ 448 010e 00C0      		rjmp .L13
+ 449               	.LBE34:
+ 450               	.LBE35:
+ 451               	.LBE36:
+ 452               	.LBE37:
+ 464               	.Lscope3:
+ 466               		.stabd	78,0,0
+ 467               		.section	.progmem.data,"a",@progbits
+ 470               	__c.1515:
+ 471 0000 5465 7374 		.string	"Test Complete\r\n"
+ 471      2043 6F6D 
+ 471      706C 6574 
+ 471      650D 0A00 
+ 475               	__c.1513:
+ 476 0010 3233 4C43 		.string	"23LC1024 Memory Test\r\n"
+ 476      3130 3234 
+ 476      204D 656D 
+ 476      6F72 7920 
+ 476      5465 7374 
+ 478               		.text
+ 480               	.Letext0:
+ 481               		.ident	"GCC: (GNU) 9.2.0"
+ 482               	.global __do_copy_data
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 main.c
+     /tmp/ccDgxhv5.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/ccDgxhv5.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/ccDgxhv5.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/ccDgxhv5.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/ccDgxhv5.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/ccDgxhv5.s:119    .text:0000000000000000 spi_xchg
+     /tmp/ccDgxhv5.s:151    .text:000000000000000c uart_tx_str_P
+     /tmp/ccDgxhv5.s:214    .text.startup:0000000000000000 main
+     /tmp/ccDgxhv5.s:475    .progmem.data:0000000000000010 __c.1513
+     /tmp/ccDgxhv5.s:470    .progmem.data:0000000000000000 __c.1515
+
+UNDEFINED SYMBOLS
+memset
+__do_copy_data
